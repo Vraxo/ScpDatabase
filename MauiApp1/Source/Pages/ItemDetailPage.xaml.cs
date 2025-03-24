@@ -6,97 +6,145 @@ public partial class ItemDetailPage : ContentPage
     {
         InitializeComponent();
 
-        ItemImage.Source = new FileImageSource { File = item.DisplayImage };
+        ItemImage.Source = new FileImageSource 
+        { 
+            File = item.DisplayImage 
+        };
 
+        LoadDetails(item);
+    }
+
+    private async void LoadDetails(DisplayModel item)
+    {
         if (item.Type == "SCP")
         {
-            LoadScpDetails(item);
+            await LoadScpDetails(item.DisplayText);
         }
         else if (item.Type == "Personnel")
         {
-            LoadPersonnelDetails(item);
+            await LoadPersonnelDetails(item.DisplayText);
         }
     }
 
-    private async void LoadScpDetails(DisplayModel item)
+    private async Task LoadScpDetails(string displayText)
     {
-        var cachedData = await DataCache.LoadCachedData();
-        var scp = cachedData?.SCPs.FirstOrDefault(s => s.Number == item.DisplayText);
+        var model = await GetCachedModel<ScpModel>(
+            cd => cd.SCPs,
+            s => s.Number == displayText
+        );
 
-        if (scp != null)
+        if (model is not null)
         {
-            AddDetailRow("Number", scp.Number);
-            AddDetailRow("Class", scp.Class);
-            AddDetailRow("Procedures", scp.Procedures);
-            AddDetailRow("Description", scp.Description);
-            AddDetailRow("Status", scp.Status);
-            AddDetailRow("Username", scp.Username);
+            AddDetails(ItemDetailPage.GetScpDetails(model));
         }
     }
 
-    private async void LoadPersonnelDetails(DisplayModel item)
+    private async Task LoadPersonnelDetails(string displayText)
     {
-        var cachedData = await DataCache.LoadCachedData();
-        var personnel = cachedData?.Personnel.FirstOrDefault(m => m.Name == item.DisplayText);
+        var model = await GetCachedModel<PersonnelModel>(
+            cd => cd.Personnel,
+            p => p.Name == displayText
+        );
 
-        if (personnel != null)
+        if (model != null)
         {
-            AddDetailRow("Name", personnel.Name);
-            AddDetailRow("Nationality", personnel.Nationality);
-            AddDetailRow("Age", personnel.Age.ToString());
-            AddDetailRow("Profession", personnel.Profession);
-            AddDetailRow("History", personnel.History);
-            AddDetailRow("Department", personnel.Department);
-            AddDetailRow("Class", personnel.Class);
-            AddDetailRow("Division", personnel.Division);
-            AddDetailRow("Clearance Level", personnel.ClearanceLevel.ToString());
-            AddDetailRow("Username", personnel.Username);
+            AddDetails(ItemDetailPage.GetPersonnelDetails(model));
         }
     }
 
-    private void AddDetailRow(string property, string value)
+    private static async Task<TModel?> GetCachedModel<TModel>(Func<CachedData, IEnumerable<TModel>> collectionSelector, Func<TModel, bool> predicate)
     {
-        int rowCount = ItemDetailsGrid.RowDefinitions.Count;
+        CachedData? cachedData = await DataCache.LoadCachedData();
+        return cachedData != null ? collectionSelector(cachedData).FirstOrDefault(predicate) : default;
+    }
 
-        // Add a row for the divider
-        ItemDetailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+    private static IEnumerable<(string Label, string Value)> GetScpDetails(ScpModel scp)
+    {
+        return
+        [
+            ("Number", scp.Number),
+            ("Class", scp.Class),
+            ("Procedures", scp.Procedures),
+            ("Description", scp.Description),
+            ("Status", scp.Status),
+            ("Username", scp.Username)
+        ];
+    }
 
-        // Add a property label, spanning 2 columns
-        var propertyLabel = new Label
+    private static IEnumerable<(string Label, string Value)> GetPersonnelDetails(PersonnelModel personnel)
+    {
+        return 
+        [
+            ("Name", personnel.Name),
+            ("Nationality", personnel.Nationality),
+            ("Age", personnel.Age.ToString()),
+            ("Profession", personnel.Profession),
+            ("History", personnel.History),
+            ("Department", personnel.Department),
+            ("Class", personnel.Class),
+            ("Division", personnel.Division),
+            ("Clearance Level", personnel.ClearanceLevel.ToString()),
+            ("Username", personnel.Username)
+        ];
+    }
+
+    private void AddDetails(IEnumerable<(string Label, string Value)> details)
+    {
+        foreach ((string Label, string Value) detail in details)
         {
-            Text = property,
-            FontAttributes = FontAttributes.Bold,
+            AddDetailRow(detail.Label, detail.Value);
+        }
+    }
+
+    private void AddDetailRow(string propertyName, string propertyValue)
+    {
+        int currentRow = ItemDetailsGrid.RowDefinitions.Count;
+
+        ItemDetailsGrid.RowDefinitions.Add(new()
+        {
+            Height = GridLength.Auto
+        });
+
+        AddLabel(propertyName, currentRow, FontAttributes.Bold);
+
+        ItemDetailsGrid.RowDefinitions.Add(new()
+        {
+            Height = GridLength.Auto
+        });
+
+        AddLabel(propertyValue, currentRow + 1);
+
+        ItemDetailsGrid.RowDefinitions.Add(new()
+        {
+            Height = GridLength.Auto
+        });
+
+        AddDivider(currentRow + 2);
+    }
+
+    private void AddLabel(string text, int row, FontAttributes fontAttributes = FontAttributes.None)
+    {
+        Label label = new()
+        {
+            Text = text,
+            FontAttributes = fontAttributes,
             HorizontalTextAlignment = TextAlignment.Center,
             VerticalOptions = LayoutOptions.Center
         };
-        ItemDetailsGrid.Add(propertyLabel, 0, rowCount);
-        ItemDetailsGrid.SetColumnSpan(propertyLabel, 2);
+        ItemDetailsGrid.Add(label, 0, row);
+        ItemDetailsGrid.SetColumnSpan(label, 2);
+    }
 
-        // Add a row for the value label
-        ItemDetailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        // Add a value label, spanning 2 columns
-        var valueLabel = new Label
-        {
-            Text = value,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalOptions = LayoutOptions.Center
-        };
-        ItemDetailsGrid.Add(valueLabel, 0, rowCount + 1);
-        ItemDetailsGrid.SetColumnSpan(valueLabel, 2);
-
-        // Add a row for the divider
-        ItemDetailsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        // Add a BoxView as a divider, spanning 2 columns
-        var divider = new BoxView
+    private void AddDivider(int row)
+    {
+        BoxView divider = new()
         {
             Color = Colors.LightGray,
             HeightRequest = 1,
-            HorizontalOptions = LayoutOptions.FillAndExpand,
+            HorizontalOptions = LayoutOptions.Fill,
             Margin = new Thickness(0, 5)
         };
-        ItemDetailsGrid.Add(divider, 0, rowCount + 2);
+        ItemDetailsGrid.Add(divider, 0, row);
         ItemDetailsGrid.SetColumnSpan(divider, 2);
     }
 }

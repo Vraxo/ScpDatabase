@@ -10,8 +10,8 @@ public static class DataCache
     
     private static readonly string supabaseUrl = "https://clxmclkjwvfqpwopwcfe.supabase.co";
     private static readonly string supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNseG1jbGtqd3ZmcXB3b3B3Y2ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzUzOTYyNjYsImV4cCI6MjA1MDk3MjI2Nn0.8EzuVJ1MByMEQGBLLw5Rj6gKConBBSupeLxCtNCpDEA";
-    private static readonly Client supabase = new(supabaseUrl, supabaseKey);
     private static readonly string cacheFileName = "data.json";
+    private static readonly Client supabase = new(supabaseUrl, supabaseKey);
     private static readonly HttpClient httpClient = new();
     
     public static async Task LoadAndCacheAllData()
@@ -31,6 +31,28 @@ public static class DataCache
         }
     }
 
+    public static async Task<CachedData?> LoadCachedData()
+    {
+        string cacheFilePath = Path.Combine(FileSystem.AppDataDirectory, cacheFileName);
+
+        if (!File.Exists(cacheFilePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            string json = await File.ReadAllTextAsync(cacheFilePath);
+            return JsonConvert.DeserializeObject<CachedData>(json);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error reading or deserializing cached data: {ex.Message}");
+        }
+
+        return null;
+    }
+
     private static void EnsureImagesFolderExists()
     {
         if (Directory.Exists(ImagesFolderPath))
@@ -39,6 +61,11 @@ public static class DataCache
         }
 
         Directory.CreateDirectory(ImagesFolderPath);
+    }
+
+    private static string GetImageUrl(string type, string imageName)
+    {
+        return $"{supabaseUrl}/storage/v1/object/public/Images/{type}/{imageName}";
     }
 
     private static async Task<List<ScpModel>> FetchScpData()
@@ -76,7 +103,7 @@ public static class DataCache
 
     private static async Task CacheImages<T>(List<T> data, string type) where T : IImageModel
     {
-        foreach (var item in data)
+        foreach (T item in data)
         {
             await CacheSingleImage(item, type);
         }
@@ -105,32 +132,5 @@ public static class DataCache
         {
             Debug.WriteLine($"Error downloading image '{item.ImageName}' from '{type}': {ex.Message}");
         }
-    }
-
-    private static string GetImageUrl(string type, string imageName)
-    {
-        return $"{supabaseUrl}/storage/v1/object/public/Images/{type}/{imageName}";
-    }
-
-    public static async Task<CachedData>? LoadCachedData()
-    {
-        string cacheFilePath = Path.Combine(FileSystem.AppDataDirectory, cacheFileName);
-
-        if (!File.Exists(cacheFilePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            string json = await File.ReadAllTextAsync(cacheFilePath);
-            return JsonConvert.DeserializeObject<CachedData>(json);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Error reading or deserializing cached data: {ex.Message}");
-        }
-
-        return null;
     }
 }

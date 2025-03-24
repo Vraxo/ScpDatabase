@@ -1,5 +1,4 @@
 ﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
 
 namespace ScpDatabase;
 
@@ -8,7 +7,7 @@ public partial class MainPage : ContentPage
     public ObservableCollection<DisplayModel> DisplayItems { get; set; } = [];
 
     private List<string> allFilterOptions = ["SCPs", "Researchers", "MTFs", "Agents", "Ethicists", "None"];
-    private Dictionary<string, bool> filterStates = [];
+    private readonly Dictionary<string, bool> filterStates = [];
 
     public MainPage()
     {
@@ -53,9 +52,10 @@ public partial class MainPage : ContentPage
         }
     }
 
-    private async void OnFilterOptionChanged(object sender, CheckedChangedEventArgs e)
+    private async void OnFilterOptionChanged(object? sender, CheckedChangedEventArgs e)
     {
-        var checkbox = (CheckBox)sender;
+        if (sender is not CheckBox checkbox) return;
+
         var option = (string)checkbox.BindingContext;
         filterStates[option] = e.Value;
 
@@ -64,7 +64,7 @@ public partial class MainPage : ContentPage
 
     private async Task ApplyFilters()
     {
-        CachedData cachedData = await DataCache.LoadCachedData();
+        CachedData? cachedData = await DataCache.LoadCachedData();
 
         if (cachedData is null)
         {
@@ -74,74 +74,85 @@ public partial class MainPage : ContentPage
 
         List<DisplayModel> filteredItems = [];
 
+        AddScpItems(cachedData, filteredItems);
+        AddPersonnelItems(cachedData, filteredItems);
+
+        UpdateDisplayItems(filteredItems);
+    }
+
+    private void AddScpItems(CachedData cachedData, List<DisplayModel> filteredItems)
+    {
         if (filterStates["SCPs"] && cachedData.SCPs != null)
         {
-            filteredItems.AddRange(cachedData.SCPs.Where(scp => scp != null).Select(scp => new DisplayModel
-            {
-                DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(scp.ImageName)),
-                DisplayText = scp.Number,
-                Type = "SCP"
-            }));
+            filteredItems.AddRange(cachedData.SCPs
+                .Where(scp => scp != null)
+                .Select(CreateDisplayModelFromScp));
         }
+    }
 
-        if (cachedData.Personnel != null)
+    private void AddPersonnelItems(CachedData cachedData, List<DisplayModel> filteredItems)
+    {
+        if (cachedData.Personnel == null)
         {
-            if (filterStates["Researchers"])
-            {
-                filteredItems.AddRange(cachedData.Personnel.Where(p => p.Department == "Researcher").Select(p => new DisplayModel
-                {
-                    DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(p.ImageName)),
-                    DisplayText = p.Name,
-                    Type = "Personnel"
-                }));
-            }
-
-            if (filterStates["MTFs"])
-            {
-                filteredItems.AddRange(cachedData.Personnel.Where(p => p.Department == "MTF").Select(p => new DisplayModel
-                {
-                    DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(p.ImageName)),
-                    DisplayText = p.Name,
-                    Type = "Personnel"
-                }));
-            }
-
-            if (filterStates["Agents"])
-            {
-                filteredItems.AddRange(cachedData.Personnel.Where(p => p.Department == "Agent").Select(p => new DisplayModel
-                {
-                    DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(p.ImageName)),
-                    DisplayText = p.Name,
-                    Type = "Personnel"
-                }));
-            }
-
-            if (filterStates["Ethicists"])
-            {
-                filteredItems.AddRange(cachedData.Personnel.Where(p => p.Department == "Ethicist").Select(p => new DisplayModel
-                {
-                    DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(p.ImageName)),
-                    DisplayText = p.Name,
-                    Type = "Personnel"
-                }));
-            }
-
-            if (filterStates["None"])
-            {
-                filteredItems.AddRange(cachedData.Personnel.Where(p => string.IsNullOrEmpty(p.Department)).Select(p => new DisplayModel
-                {
-                    DisplayImage = Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(p.ImageName)),
-                    DisplayText = p.Name,
-                    Type = "Personnel"
-                }));
-            }
+            return;
         }
 
-        // Update the CollectionView
-        Device.BeginInvokeOnMainThread(() =>
+        List<(string FilterKey, string? Department)> personnelFilters =
+        [
+            ("Researchers", "Researcher"),
+            ("MTFs", "MTF"),
+            ("Agents", "Agent"),
+            ("Ethicists", "Ethicist"),
+            ("None", null)
+        ];
+
+        foreach (var (FilterKey, Department) in personnelFilters)
+        {
+            if (!filterStates[FilterKey])
+            {
+                continue;
+            }
+
+            IEnumerable<PersonnelModel> personnel = Department == null
+                ? cachedData.Personnel.Where(p => string.IsNullOrEmpty(p.Department))
+                : cachedData.Personnel.Where(p => p.Department == Department);
+
+            filteredItems.AddRange(personnel.Select(CreateDisplayModelFromPersonnel));
+        }
+    }
+
+    private DisplayModel CreateDisplayModelFromScp(ScpModel scp)
+    {
+        return new()
+        {
+            DisplayImage = GetImagePath(scp.ImageName),
+            DisplayText = scp.Number,
+            Type = "SCP"
+        };
+    }
+
+    private DisplayModel CreateDisplayModelFromPersonnel(PersonnelModel personnel)
+    {
+        return new()
+        {
+            DisplayImage = GetImagePath(personnel.ImageName),
+            DisplayText = personnel.Name,
+            Type = "Personnel"
+        };
+    }
+
+    private static string GetImagePath(string imageName)
+    {
+        return Path.Combine(DataCache.ImagesFolderPath, Path.GetFileName(imageName));
+    }
+
+    private void UpdateDisplayItems(List<DisplayModel> filteredItems)
+    {
+        Dispatcher.Dispatch(() =>
         {
             DisplayItems.Clear();
-            foreach (var item in filteredItems)
+
+            foreach (DisplayModel? item in filteredItems.OrderBy(i => i.DisplayText))
             {
                 DisplayItems.Add(item);
             }
@@ -161,21 +172,27 @@ public partial class MainPage : ContentPage
     private async void OnSyncButtonClicked(object sender, EventArgs e)
     {
         await DataCache.LoadAndCacheAllData();
-
         await DisplayAlert("Sync Complete", "Data has been synced successfully!", "OK");
-
         await ApplyFilters();
 
         try
         {
             if (Directory.Exists(DataCache.ImagesFolderPath))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = DataCache.ImagesFolderPath,
-                    UseShellExecute = true,
-                    Verb = "open"
-                });
+#if (ANDROID || WINDOWS) && DEBUG
+            // Only open folder in debug builds for Android/Windows
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = DataCache.ImagesFolderPath,
+                UseShellExecute = true,
+                Verb = "open"
+            });
+#else
+                // For release builds or other platforms
+                await DisplayAlert("Cache Location",
+                    $"Files cached at: {DataCache.ImagesFolderPath}",
+                    "OK");
+#endif
             }
             else
             {
@@ -184,7 +201,7 @@ public partial class MainPage : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to open cache folder: {ex.Message}", "OK");
+            await DisplayAlert("Error", $"Failed to access cache: {ex.Message}", "OK");
         }
     }
 
