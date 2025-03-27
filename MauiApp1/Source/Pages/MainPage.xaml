@@ -4,13 +4,63 @@
              x:Class="ScpDatabase.MainPage"
              Title="Main Page">
 
+    <!-- Define Resources for the Page -->
+    <ContentPage.Resources>
+        <ResourceDictionary>
+
+            <!-- Style for the Sync Button with Visual States -->
+            <Style x:Key="SyncButtonStyle" TargetType="Button">
+                <!-- Optional: Inherit from the default Button style if needed -->
+                <!-- BasedOn="{StaticResource {x:Type Button}}" -->
+
+                <!-- Define the Visual States for this Style -->
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <!-- Define the normal look -->
+                                    <!-- If inheriting, you might not need to set default values -->
+                                    <!-- Example: <Setter Property="BackgroundColor" Value="{AppThemeBinding Light=Gray, Dark=DarkGray}" /> -->
+                                    <Setter Property="Scale" Value="1.0" />
+                                    <Setter Property="Opacity" Value="1.0" />
+                                </VisualState.Setters>
+                            </VisualState>
+
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <!-- Change appearance when pressed -->
+                                    <Setter Property="BackgroundColor" Value="DarkGray" />
+                                    <Setter Property="Scale" Value="0.95" />
+                                    <Setter Property="Opacity" Value="0.8" />
+                                </VisualState.Setters>
+                            </VisualState>
+
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <!-- Style for disabled state -->
+                                    <Setter Property="BackgroundColor" Value="LightGray" />
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <!-- Page Content -->
     <VerticalStackLayout>
+        <!-- Top Section: Filter Dropdown and Sync Button -->
         <Grid Padding="10" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <!-- Filter Dropdown Frame -->
             <Frame Grid.Column="0" BorderColor="Gray" Padding="10">
                 <VerticalStackLayout>
                     <Label x:Name="DropdownLabel" Text="Select Filters" FontAttributes="Bold" />
@@ -21,39 +71,56 @@
                 </Frame.GestureRecognizers>
             </Frame>
 
-            <Button Grid.Column="1" Text="Sync" Clicked="OnSyncButtonClicked" VerticalOptions="Start" />
+            <!-- Sync Button - Apply the Style -->
+            <Button Grid.Column="1"
+                    Text="Sync"
+                    Clicked="OnSyncButtonClicked"
+                    VerticalOptions="Start"
+                    Style="{StaticResource SyncButtonStyle}" />
+            <!-- REMOVED the inline VisualStateManager block -->
+
         </Grid>
 
+        <!-- CollectionView for SCP Items -->
         <CollectionView ItemsSource="{Binding DisplayItems}" VerticalOptions="FillAndExpand">
             <CollectionView.ItemsLayout>
-                <GridItemsLayout Orientation="Vertical" 
-                                 Span="2" 
+                <GridItemsLayout Orientation="Vertical"
+                                 Span="2"
                                  VerticalItemSpacing="10"
                                  HorizontalItemSpacing="10"/>
             </CollectionView.ItemsLayout>
             <CollectionView.ItemTemplate>
                 <DataTemplate>
                     <Grid Padding="10">
+                        <!-- Item Tapped Gesture -->
                         <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnItemTapped" />
+                            <TapGestureRecognizer Tapped="OnItemTapped" CommandParameter="{Binding .}"/>
                         </Grid.GestureRecognizers>
+
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Frame x:Name="ImageFrame" CornerRadius="10" HasShadow="True" Padding="0">
+
+                        <!-- Item Image Frame -->
+                        <Frame Grid.Row="0" x:Name="ImageFrame" CornerRadius="10" HasShadow="True" Padding="0">
+                            <!-- Frame Tapped Gesture -->
                             <Frame.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnItemTapped" />
+                                <TapGestureRecognizer Tapped="OnItemTapped" CommandParameter="{Binding .}"/>
                             </Frame.GestureRecognizers>
                             <Image Aspect="AspectFit" HeightRequest="150">
                                 <Image.Source>
+                                    <!-- Assuming DisplayImage is a string path -->
                                     <FileImageSource File="{Binding DisplayImage}" />
                                 </Image.Source>
                             </Image>
                         </Frame>
-                        <Label Grid.Row="1" Text="{Binding DisplayText}" 
-                               HorizontalOptions="Center" 
-                               FontAttributes="Bold" />
+
+                        <!-- Item Text Label -->
+                        <Label Grid.Row="1" Text="{Binding DisplayText}"
+                               HorizontalOptions="Center"
+                               FontAttributes="Bold"
+                               Margin="0,5,0,0" />
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
